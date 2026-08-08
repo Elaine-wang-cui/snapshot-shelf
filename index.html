@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7f6f2" />
+    <meta name="description" content="把有用的截图收进自己的资料库。" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
+    <title>拾图 · 截图资料库</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <a class="brand" href="#top" aria-label="拾图首页"><span class="brand-mark">✦</span><span>拾图</span></a>
+        <button class="icon-button" id="add-button" type="button" aria-label="导入截图">＋</button>
+      </header>
+
+      <main id="top">
+        <section class="hero">
+          <p class="eyebrow">你的视觉资料库</p>
+          <h1>把值得留下的，<br />好好收起来。</h1>
+          <p class="hero-copy">截图、灵感与重要信息，都在你自己的设备里。</p>
+          <label class="upload-cta" for="file-input"><span>导入截图</span><span aria-hidden="true">↗</span></label>
+          <input id="file-input" class="file-input" type="file" accept="image/*" multiple aria-label="选择要导入的截图" />
+        </section>
+
+        <section class="search-section" aria-label="搜索截图">
+          <label class="search-box" for="search-input"><span aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="搜索标题、备注或标签" autocomplete="off" /><kbd>⌘ K</kbd></label>
+          <div class="storage-tools">
+            <p id="storage-note" class="storage-note">所有内容只保存在这台设备</p>
+            <p id="quota-note" class="quota-note" aria-live="polite"></p>
+            <div class="backup-actions"><button id="backup-button" class="backup-button" type="button">备份到文件</button><label class="restore-button" for="restore-input">恢复备份</label></div>
+          </div>
+          <input id="restore-input" class="file-input" type="file" accept="application/json,.json" aria-label="选择拾图备份文件" />
+        </section>
+
+        <section class="filters" aria-label="分类">
+          <div class="section-heading"><h2>分类</h2><button id="manage-folders" class="text-button" type="button">管理</button></div>
+          <div id="folder-pills" class="folder-pills"></div>
+        </section>
+
+        <section class="library" aria-labelledby="library-title">
+          <div class="library-header">
+            <div><p id="library-kicker" class="eyebrow">全部收集</p><h2 id="library-title">我的截图</h2></div>
+            <button id="sort-button" class="sort-button" type="button">最新在前 <span aria-hidden="true">⌄</span></button>
+          </div>
+          <div id="gallery" class="gallery" aria-live="polite"></div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="import-dialog" class="panel-dialog">
+      <form id="import-form" method="dialog">
+        <div class="dialog-header"><div><p class="eyebrow">导入截图</p><h2>给它们一个位置</h2></div><button class="close-button" value="cancel" type="submit" aria-label="关闭">×</button></div>
+        <div id="import-previews" class="import-previews"></div>
+        <label class="field"><span>分类</span><select id="import-folder"><option value="未分类">未分类</option><option value="灵感">灵感</option><option value="工作">工作</option><option value="生活">生活</option></select></label>
+        <label class="field"><span>标签 <em>用逗号隔开</em></span><input id="import-tags" type="text" placeholder="例如：旅行, 待购买" /></label>
+        <label class="field"><span>备注 <em>可选，会参与搜索</em></span><textarea id="import-note" rows="3" placeholder="这张图想留住什么？"></textarea></label>
+        <p class="privacy-tip">图片与信息保存在这台设备的浏览器中。</p>
+        <menu><button class="secondary-button" value="cancel" type="submit">取消</button><button id="save-import" class="primary-button" value="default" type="submit">收进资料库</button></menu>
+      </form>
+    </dialog>
+
+    <dialog id="detail-dialog" class="panel-dialog detail-dialog">
+      <form id="detail-form" method="dialog">
+        <div class="dialog-header"><div><p class="eyebrow">整理截图</p><h2>补充资料</h2></div><button class="close-button" value="cancel" type="submit" aria-label="关闭">×</button></div>
+        <img id="detail-image" class="detail-image" alt="" />
+        <label class="field"><span>标题</span><input id="detail-title" type="text" required /></label>
+        <label class="field"><span>分类</span><select id="detail-folder"><option value="未分类">未分类</option><option value="灵感">灵感</option><option value="工作">工作</option><option value="生活">生活</option></select></label>
+        <label class="field"><span>标签 <em>用逗号隔开</em></span><input id="detail-tags" type="text" /></label>
+        <label class="field"><span>备注</span><textarea id="detail-note" rows="3"></textarea></label>
+        <menu><button id="delete-button" class="danger-button" value="cancel" type="button">删除</button><button class="primary-button" value="default" type="submit">保存修改</button></menu>
+      </form>
+    </dialog>
+
+    <dialog id="folder-dialog" class="panel-dialog small-dialog">
+      <form id="folder-form" method="dialog">
+        <div class="dialog-header"><div><p class="eyebrow">分类</p><h2>新建分类</h2></div><button class="close-button" value="cancel" type="submit" aria-label="关闭">×</button></div>
+        <label class="field"><span>分类名称</span><input id="new-folder" type="text" maxlength="16" placeholder="例如：菜谱" required /></label>
+        <menu><button class="secondary-button" value="cancel" type="submit">取消</button><button class="primary-button" value="default" type="submit">添加</button></menu>
+      </form>
+    </dialog>
+
+    <p id="status-message" class="status-message" role="status" aria-live="polite"></p>
+    <template id="empty-state"><div class="empty-state"><span>▧</span><h3>这里还空着</h3><p>导入第一张截图，开始建立自己的资料库。</p><button class="primary-button empty-add" type="button">导入截图</button></div></template>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

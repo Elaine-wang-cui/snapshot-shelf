@@ -1,0 +1,11 @@
+{
+  "name": "拾图 · 截图资料库",
+  "short_name": "拾图",
+  "description": "把有用的截图收进自己的资料库。",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f7f6f2",
+  "theme_color": "#f7f6f2",
+  "icons": [{ "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
