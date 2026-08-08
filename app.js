@@ -228,15 +228,32 @@ function clearDraft() {
   fileInput.value = '';
 }
 
-function startImport(files) {
-  clearDraft();
-  draftFiles = [...files].filter((file) => file.type.startsWith('image/')).map((file) => ({ file, previewUrl: URL.createObjectURL(file) }));
-  if (!draftFiles.length) return;
-  $('#import-previews').innerHTML = draftFiles.map(({ file, previewUrl }) => `<div class="preview"><img src="${previewUrl}" alt="" /><span>${escapeHtml(imageTitle(file.name))}</span></div>`).join('');
-  $('#import-folder').value = activeFolder !== '全部' ? activeFolder : '未分类';
-  $('#import-tags').value = '';
-  $('#import-note').value = '';
-  importDialog.showModal();
+async function startImport(files) {
+  const imageFiles = [...files].filter((file) => file.type.startsWith('image/') || /\.(avif|gif|heic|heif|jpe?g|png|webp)$/i.test(file.name));
+  fileInput.value = '';
+  if (!imageFiles.length) { showStatus('请选择图片文件。'); return; }
+  try {
+    const folder = activeFolder !== '全部' ? activeFolder : '未分类';
+    const timestamp = Date.now();
+    await Promise.all(imageFiles.map((file, offset) => put({
+      // Store a Blob rather than a File for the widest iPhone Safari compatibility.
+      image: file.slice(0, file.size, file.type || 'image/png'),
+      title: imageTitle(file.name),
+      folder,
+      tags: [],
+      note: '',
+      ocrText: '',
+      backupId: crypto.randomUUID(),
+      createdAt: timestamp + offset,
+      updatedAt: timestamp + offset,
+    })));
+    items = await getAll();
+    render();
+    showStatus(`已导入 ${imageFiles.length} 张，点图片可补充分类和标签。`);
+  } catch (error) {
+    console.error(error);
+    showStatus('图片没有存成功，请确认 Safari 不是无痕模式并再试一次。');
+  }
 }
 
 async function saveDraft(event) {
