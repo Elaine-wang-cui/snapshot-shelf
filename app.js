@@ -1,6 +1,7 @@
 const DB_NAME = 'snapshot-shelf';
 const STORE = 'screenshots';
 const DEFAULT_FOLDERS = ['未分类', '灵感', '工作', '生活'];
+const OCR_ASSET_BASE = new URL('./ocr/', import.meta.url).href;
 
 let db;
 let items = [];
@@ -87,6 +88,16 @@ async function updateStorageEstimate() {
   }
 }
 
+async function requestPersistentStorage() {
+  if (!navigator.storage?.persist) return;
+  try {
+    const isPersistent = await navigator.storage.persisted();
+    if (!isPersistent) await navigator.storage.persist();
+  } catch {
+    // Safari may not expose persistent-storage controls; IndexedDB still works in normal browsing mode.
+  }
+}
+
 function readAsDataUrl(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -163,9 +174,9 @@ async function getOcrWorker() {
       // Tesseract runs as WebAssembly in a browser worker. It downloads only its engine
       // and language models on first use; the screenshot Blob remains on this device.
       return globalThis.Tesseract.createWorker(['chi_sim', 'eng'], 1, {
-        workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
-        corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1',
-        langPath: 'https://tessdata.projectnaptha.com/4.0.0_fast',
+        workerPath: `${OCR_ASSET_BASE}worker.min.js`,
+        corePath: `${OCR_ASSET_BASE}core/`,
+        langPath: `${OCR_ASSET_BASE}lang/`,
         logger: (message) => {
           const phase = {
             'loading tesseract core': '正在准备识别引擎',
@@ -204,6 +215,7 @@ async function recognizeScreenshot(id) {
     item.ocrState = 'processing';
     await put(item);
     items = await getAll();
+    requestPersistentStorage();
     render();
     const worker = await getOcrWorker();
     const { data } = await worker.recognize(item.image);
@@ -437,6 +449,7 @@ function bindEvents() {
 
 async function init() {
   await openDatabase();
+  requestPersistentStorage();
   items = await getAll();
   bindEvents();
   render();
