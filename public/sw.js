@@ -1,4 +1,4 @@
-const CACHE = 'snapshot-shelf-v2';
+const CACHE = 'snapshot-shelf-v3';
 const APP_SHELL = ['./'];
 
 self.addEventListener('install', (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL))));
