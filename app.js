@@ -12,6 +12,7 @@ let editingId = null;
 let statusTimer;
 let ocrWorkerPromise = null;
 let ocrQueue = Promise.resolve();
+const pendingOcrIds = new Set();
 const objectUrls = new Set();
 
 const $ = (selector) => document.querySelector(selector);
@@ -158,13 +159,24 @@ async function restoreBackup(file) {
 async function getOcrWorker() {
   if (!ocrWorkerPromise) {
     const workerPromise = (async () => {
+      if (!globalThis.Tesseract?.createWorker) throw new Error('OCR engine did not load');
       // Tesseract runs as WebAssembly in a browser worker. It downloads only its engine
       // and language models on first use; the screenshot Blob remains on this device.
-      const { createWorker } = await import('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js');
-      return createWorker(['chi_sim', 'eng'], 1, {
+      return globalThis.Tesseract.createWorker(['chi_sim', 'eng'], 1, {
+        workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
+        corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1',
+        langPath: 'https://tessdata.projectnaptha.com/4.0.0_fast',
         logger: (message) => {
-          if (message.status === 'recognizing text' && typeof message.progress === 'number') {
-            $('#quota-note').textContent = `正在本机识别文字 · ${Math.round(message.progress * 100)}%`;
+          const phase = {
+            'loading tesseract core': '正在准备识别引擎',
+            'initializing tesseract': '正在启动识别引擎',
+            'loading language traineddata': '正在下载中文识别包',
+            'initializing api': '正在准备文字识别',
+            'recognizing text': '正在本机识别文字',
+          }[message.status];
+          if (phase) {
+            const progress = typeof message.progress === 'number' ? ` · ${Math.round(message.progress * 100)}%` : '';
+            $('#quota-note').textContent = `${phase}${progress}`;
           }
         },
       });
@@ -178,8 +190,9 @@ async function getOcrWorker() {
 }
 
 function scheduleOcr(ids) {
-  ids.forEach((id) => {
-    ocrQueue = ocrQueue.then(() => recognizeScreenshot(id));
+  ids.filter((id) => !pendingOcrIds.has(id)).forEach((id) => {
+    pendingOcrIds.add(id);
+    ocrQueue = ocrQueue.then(() => recognizeScreenshot(id)).finally(() => pendingOcrIds.delete(id));
   });
   return ocrQueue;
 }
@@ -214,7 +227,7 @@ async function recognizeScreenshot(id) {
 }
 
 function recognizeExisting() {
-  const targetIds = items.filter((item) => item.ocrState !== 'processing' && (item.ocrState !== 'done' || !item.ocrText)).map((item) => item.id);
+  const targetIds = items.filter((item) => item.ocrState !== 'done' || !item.ocrText).map((item) => item.id);
   if (!targetIds.length) { showStatus('已有截图的文字都识别好了。'); return; }
   showStatus(`开始在本机识别 ${targetIds.length} 张截图的文字。`);
   scheduleOcr(targetIds);
