@@ -10,6 +10,8 @@ let sortNewestFirst = true;
 let draftFiles = [];
 let editingId = null;
 let statusTimer;
+let ocrWorkerPromise = null;
+let ocrQueue = Promise.resolve();
 const objectUrls = new Set();
 
 const $ = (selector) => document.querySelector(selector);
@@ -153,6 +155,71 @@ async function restoreBackup(file) {
   }
 }
 
+async function getOcrWorker() {
+  if (!ocrWorkerPromise) {
+    const workerPromise = (async () => {
+      // Tesseract runs as WebAssembly in a browser worker. It downloads only its engine
+      // and language models on first use; the screenshot Blob remains on this device.
+      const { createWorker } = await import('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js');
+      return createWorker(['chi_sim', 'eng'], 1, {
+        logger: (message) => {
+          if (message.status === 'recognizing text' && typeof message.progress === 'number') {
+            $('#quota-note').textContent = `正在本机识别文字 · ${Math.round(message.progress * 100)}%`;
+          }
+        },
+      });
+    })();
+    ocrWorkerPromise = workerPromise.catch((error) => {
+      ocrWorkerPromise = null;
+      throw error;
+    });
+  }
+  return ocrWorkerPromise;
+}
+
+function scheduleOcr(ids) {
+  ids.forEach((id) => {
+    ocrQueue = ocrQueue.then(() => recognizeScreenshot(id));
+  });
+  return ocrQueue;
+}
+
+async function recognizeScreenshot(id) {
+  const item = items.find((candidate) => candidate.id === id);
+  if (!item || item.ocrState === 'done') return;
+  try {
+    item.ocrState = 'processing';
+    await put(item);
+    items = await getAll();
+    render();
+    const worker = await getOcrWorker();
+    const { data } = await worker.recognize(item.image);
+    item.ocrText = (data.text || '').replace(/\s+/g, ' ').trim();
+    item.ocrState = 'done';
+    item.updatedAt = Date.now();
+    await put(item);
+    items = await getAll();
+    render();
+  } catch (error) {
+    console.error('OCR failed', error);
+    const failedItem = items.find((candidate) => candidate.id === id);
+    if (failedItem) {
+      failedItem.ocrState = 'failed';
+      await put(failedItem);
+      items = await getAll();
+      render();
+    }
+    showStatus('这张图的文字识别没有完成，可稍后点“识别已有文字”重试。');
+  }
+}
+
+function recognizeExisting() {
+  const targetIds = items.filter((item) => item.ocrState !== 'processing' && (item.ocrState !== 'done' || !item.ocrText)).map((item) => item.id);
+  if (!targetIds.length) { showStatus('已有截图的文字都识别好了。'); return; }
+  showStatus(`开始在本机识别 ${targetIds.length} 张截图的文字。`);
+  scheduleOcr(targetIds);
+}
+
 function createUrl(blob) {
   const url = URL.createObjectURL(blob);
   objectUrls.add(url);
@@ -210,7 +277,7 @@ function renderGallery() {
     gallery.replaceChildren($('#empty-state').content.cloneNode(true));
     return;
   }
-  gallery.innerHTML = view.map((item) => `<article class="card"><img src="${createUrl(item.image)}" alt="${escapeHtml(item.title)}" /><div class="card-overlay"><span class="card-title">${escapeHtml(item.title)}</span><span class="card-meta">${escapeHtml(item.folder || '未分类')} · ${readableDate(item.createdAt)}</span></div><button type="button" class="card-button" data-item-id="${item.id}" aria-label="整理 ${escapeHtml(item.title)}">整理</button></article>`).join('');
+  gallery.innerHTML = view.map((item) => `<article class="card"><img src="${createUrl(item.image)}" alt="${escapeHtml(item.title)}" /><div class="card-overlay"><span class="card-title">${escapeHtml(item.title)}</span><span class="card-meta">${escapeHtml(item.folder || '未分类')} · ${item.ocrState === 'processing' ? '识别中…' : readableDate(item.createdAt)}</span></div><button type="button" class="card-button" data-item-id="${item.id}" aria-label="整理 ${escapeHtml(item.title)}">整理</button></article>`).join('');
 }
 
 function render() {
@@ -235,7 +302,7 @@ async function startImport(files) {
   try {
     const folder = activeFolder !== '全部' ? activeFolder : '未分类';
     const timestamp = Date.now();
-    await Promise.all(imageFiles.map((file, offset) => put({
+    const ids = await Promise.all(imageFiles.map((file, offset) => put({
       // Store a Blob rather than a File for the widest iPhone Safari compatibility.
       image: file.slice(0, file.size, file.type || 'image/png'),
       title: imageTitle(file.name),
@@ -243,13 +310,15 @@ async function startImport(files) {
       tags: [],
       note: '',
       ocrText: '',
+      ocrState: 'queued',
       backupId: crypto.randomUUID(),
       createdAt: timestamp + offset,
       updatedAt: timestamp + offset,
     })));
     items = await getAll();
     render();
-    showStatus(`已导入 ${imageFiles.length} 张，点图片可补充分类和标签。`);
+    showStatus(`已导入 ${imageFiles.length} 张，正在本机识别截图文字。`);
+    scheduleOcr(ids);
   } catch (error) {
     console.error(error);
     showStatus('图片没有存成功，请确认 Safari 不是无痕模式并再试一次。');
@@ -343,12 +412,14 @@ function bindEvents() {
   $('#folder-form').addEventListener('submit', addFolder);
   $('#manage-folders').addEventListener('click', () => folderDialog.showModal());
   $('#backup-button').addEventListener('click', downloadBackup);
+  $('#ocr-button').addEventListener('click', recognizeExisting);
   $('#restore-input').addEventListener('change', (event) => restoreBackup(event.target.files[0]));
   $('#folder-pills').addEventListener('click', (event) => { const button = event.target.closest('[data-folder]'); if (button) { activeFolder = button.dataset.folder; render(); } });
   gallery.addEventListener('click', (event) => { const button = event.target.closest('[data-item-id]'); if (button) openDetails(Number(button.dataset.itemId)); if (event.target.closest('.empty-add')) fileInput.click(); });
   $('#search-input').addEventListener('input', renderGallery);
   $('#sort-button').addEventListener('click', () => { sortNewestFirst = !sortNewestFirst; $('#sort-button').innerHTML = `${sortNewestFirst ? '最新在前' : '最早在前'} <span aria-hidden="true">⌄</span>`; renderGallery(); });
   window.addEventListener('keydown', (event) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); $('#search-input').focus(); } });
+  window.addEventListener('pagehide', () => { if (ocrWorkerPromise) ocrWorkerPromise.then((worker) => worker.terminate()).catch(() => {}); });
 }
 
 async function init() {

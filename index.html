@@ -8,7 +8,7 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./icon.svg" />
     <title>拾图 · 截图资料库</title>
-    <link rel="stylesheet" href="./styles.css?v=20260808" />
+    <link rel="stylesheet" href="./styles.css?v=20260810" />
   </head>
   <body>
     <div class="shell">
@@ -27,11 +27,11 @@
         </section>
 
         <section class="search-section" aria-label="搜索截图">
-          <label class="search-box" for="search-input"><span aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="搜索标题、备注或标签" autocomplete="off" /><kbd>⌘ K</kbd></label>
+          <label class="search-box" for="search-input"><span aria-hidden="true">⌕</span><input id="search-input" type="search" placeholder="搜索截图文字、标题或标签" autocomplete="off" /><kbd>⌘ K</kbd></label>
           <div class="storage-tools">
             <p id="storage-note" class="storage-note">所有内容只保存在这台设备</p>
             <p id="quota-note" class="quota-note" aria-live="polite"></p>
-            <div class="backup-actions"><button id="backup-button" class="backup-button" type="button">备份到文件</button><label class="restore-button" for="restore-input">恢复备份</label></div>
+            <div class="backup-actions"><button id="ocr-button" class="backup-button" type="button">识别已有文字</button><button id="backup-button" class="backup-button" type="button">备份到文件</button><label class="restore-button" for="restore-input">恢复备份</label></div>
           </div>
           <input id="restore-input" class="file-input" type="file" accept="application/json,.json" aria-label="选择拾图备份文件" />
         </section>
@@ -85,6 +85,6 @@
 
     <p id="status-message" class="status-message" role="status" aria-live="polite"></p>
     <template id="empty-state"><div class="empty-state"><span>▧</span><h3>这里还空着</h3><p>导入第一张截图，开始建立自己的资料库。</p><button class="primary-button empty-add" type="button">导入截图</button></div></template>
-    <script type="module" src="./app.js?v=20260808"></script>
+    <script type="module" src="./app.js?v=20260810"></script>
   </body>
 </html>
